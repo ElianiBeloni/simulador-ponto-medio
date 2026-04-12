@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Ponto Médio - Origem Central Simétrica</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #2b2b2b;
+            color: #ddd;
+        }
+        .controls {
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        input {
+            width: 50px;
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            background: #222;
+            color: white;
+        }
+        button {
+            padding: 8px 15px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background: #45a049; }
+        button:disabled { background: #555; color: #888; cursor: not-allowed; }
+        
+        #btnStep { background: #2196F3; }
+        #btnStep:hover { background: #1e88e5; }
+        #btnStep:disabled { background: #555; }
+
+        canvas {
+            background-color: white;
+            /* Grade base ajustada para 24px */
+            background-image:
+                linear-gradient(#e0e0e0 1px, transparent 1px),
+                linear-gradient(90deg, #e0e0e0 1px, transparent 1px);
+            background-size: 24px 24px;
+            border: 2px solid #555;
+        }
+        .status { margin-top: 10px; font-family: monospace; font-size: 16px; }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <label>Raio (r): <input type="number" id="inputR" value="5" min="1"></label>
+    <label>X0: <input type="number" id="inputX" value="0"></label>
+    <label>Y0: <input type="number" id="inputY" value="0"></label>
+    
+    <button id="btnStart">Iniciar</button>
+    <button id="btnStep" disabled>Avançar Passo</button>
+</div>
+
+<canvas id="renderCanvas" width="600" height="600"></canvas>
+<div class="status" id="statusDisplay">Aguardando...</div>
+
+<script>
+    const canvas = document.getElementById('renderCanvas');
+    const ctx = canvas.getContext('2d');
+    const statusDisplay = document.getElementById('statusDisplay');
+    
+    // Ajuste matemático: 600 / 24 = 25 células.
+    const pixelSize = 24;
+    // O centro exato de uma matriz de 25 posições (0 a 24) é o índice 12.
+    const gridCenter = 12; 
+
+    const btnStart = document.getElementById('btnStart');
+    const btnStep = document.getElementById('btnStep');
+
+    let state = {
+        active: false,
+        x0: 0, y0: 0, r: 0,
+        x: 0, y: 0, h_m: 0
+    };
+
+    function drawAxes() {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        // Eixo X
+        ctx.fillRect(0, gridCenter * pixelSize, canvas.width, pixelSize);
+        // Eixo Y
+        ctx.fillRect(gridCenter * pixelSize, 0, pixelSize, canvas.height);
+        
+        // Marca a origem exata (0,0)
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(gridCenter * pixelSize, gridCenter * pixelSize, pixelSize, pixelSize);
+    }
+
+    function clearCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawAxes();
+    }
+
+    function drawPixel(logicalX, logicalY, color = 'black') {
+        const screenX = gridCenter + logicalX;
+        const screenY = gridCenter - logicalY; 
+        
+        ctx.fillStyle = color;
+        ctx.fillRect(screenX * pixelSize, screenY * pixelSize, pixelSize, pixelSize);
+    }
+
+    function plotSymmetricPoints(x0, y0, x, y, color) {
+        drawPixel(x0 + x, y0 + y, color);
+        drawPixel(x0 + x, y0 - y, color);
+        drawPixel(x0 - x, y0 + y, color);
+        drawPixel(x0 - x, y0 - y, color);
+        drawPixel(x0 + y, y0 + x, color);
+        drawPixel(x0 + y, y0 - x, color);
+        drawPixel(x0 - y, y0 + x, color);
+        drawPixel(x0 - y, y0 - x, color);
+    }
+
+    // Desenha os eixos iniciais
+    drawAxes();
+
+    btnStart.addEventListener('click', () => {
+        clearCanvas();
+        
+        state.r = parseInt(document.getElementById('inputR').value);
+        state.x0 = parseInt(document.getElementById('inputX').value);
+        state.y0 = parseInt(document.getElementById('inputY').value);
+        
+        // Algoritmo 2.12 - Inicialização
+        state.h_m = 1 - state.r;
+        state.x = 0;
+        state.y = -state.r;
+        state.active = true;
+
+        drawPixel(state.x0, state.y0, 'red');
+        plotSymmetricPoints(state.x0, state.y0, state.x, state.y, 'blue');
+        
+        statusDisplay.innerText = `Inicializado: x=${state.x}, y=${state.y}, h_m=${state.h_m}`;
+        btnStep.disabled = false;
+        btnStart.innerText = "Reiniciar";
+    });
+
+    btnStep.addEventListener('click', () => {
+        if (!state.active) return;
+
+        plotSymmetricPoints(state.x0, state.y0, state.x, state.y, 'black');
+
+        if (state.x < -(state.y + 1)) {
+            if (state.h_m < 0) {
+                state.h_m = state.h_m + 2 * state.x + 3;
+            } else {
+                state.h_m = state.h_m + 2 * state.x + 2 * state.y + 5;
+                state.y = state.y + 1;
+            }
+            state.x = state.x + 1;
+            
+            plotSymmetricPoints(state.x0, state.y0, state.x, state.y, 'blue');
+            statusDisplay.innerText = `Passo atual: x=${state.x}, y=${state.y}, h_m=${state.h_m}`;
+            
+        } else {
+            state.active = false;
+            btnStep.disabled = true;
+            statusDisplay.innerText = `Concluído. Loop finalizado.`;
+            plotSymmetricPoints(state.x0, state.y0, state.x, state.y, 'black');
+        }
+    });
+</script>
+</body>
+</html>
